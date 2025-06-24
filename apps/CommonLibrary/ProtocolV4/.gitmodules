@@ -1,0 +1,6 @@
+[submodule "uavcan/public_regulated_data_types"]
+	path = uavcan/public_regulated_data_types
+	url = https://github.com/OpenCyphal/public_regulated_data_types.git
+[submodule "uavcan/libcanard"]
+	path = uavcan/libcanard
+	url = https://github.com/OpenCyphal/libcanard.git
