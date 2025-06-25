@@ -34,7 +34,7 @@
  const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
  
  /* External motor control function */
- void super_elevator_task(void* obj);
+ void wheelmotor_task(void* obj);
  extern fsm_rt_t motor_torque_control_mode(fsm_cb_t *obj);
  extern fsm_rt_t motor_speed_control_mode(fsm_cb_t *obj);
  extern fsm_rt_t motor_position_control_mode(fsm_cb_t *obj);
@@ -94,13 +94,6 @@
          LOG_ERR("Failed to configure encoder power (err %d)", ret);
      }
 
-     const struct gpio_dt_spec prx_switch = GPIO_DT_SPEC_GET(P_SWITCH, gpios);
-     ret = gpio_pin_configure_dt(&prx_switch, GPIO_INPUT);
-     if (ret < 0) {
-        LOG_ERR("Failed to configure proximity switch (err %d)", ret);
-     } else {
-        LOG_INF("Proximity switch configured");
-     }
           
  #endif
  
@@ -116,7 +109,7 @@
         gpio_pin_toggle_dt(&w_dog);
  #endif
         /* Run motor control tasks */
-        super_elevator_task((void *)motor0);
+        wheelmotor_task((void *)motor0);
         k_msleep(1);
      }
  }
@@ -143,24 +136,18 @@
                     K_NO_WAIT);
  }
  
-static fsm_cb_t elevator_handle = {
+static fsm_cb_t wheelmotor_handle = {
     .chState = 0,
 };
 uint8_t conctrl_cmd = 0;
 #define  RISING_DIS 3000.0f
 enum{
-    ELEVATOR_INIT = USER_STATUS,
-    ELEVATOR_FINDZERO,
-    ELEVATOR_ZERO,
-    ELEVATOR_ISZERO,
-    ELEVATOR_ISEND,
-    ELEVATOR_END,
+    WHEELMOTOR_INIT = USER_STATUS,
+    WHEELMOTOR_IDLE,
 };
-void super_elevator_task(void* obj)
+void wheelmotor_task(void* obj)
 {
-
-    fsm_cb_t* elevator_fsm = &elevator_handle;
-    const struct gpio_dt_spec prx_switch = GPIO_DT_SPEC_GET(P_SWITCH, gpios);
+    fsm_cb_t* elevator_fsm = &wheelmotor_handle;
 
     const struct device *motor = (const struct device*)obj;
     struct motor_data *data;
@@ -169,125 +156,28 @@ void super_elevator_task(void* obj)
 
     /* Run state machine */
     DISPATCH_FSM(cfg->fsm);
-    int switch_state;
     elevator_fsm->p1 = (void *)motor;
     switch (elevator_fsm->chState) {
         case ENTER:
-        case ELEVATOR_INIT:
+        case WHEELMOTOR_INIT:
             {
-                switch_state = gpio_pin_get_dt(&prx_switch);
-                if (switch_state < 0) {
-                    LOG_WRN("Failed to read proximity switch");
-                } else {//电机正转 找零点
-                    if(switch_state == 0)
+                if(motor_get_mode(motor) != MOTOR_MODE_SPEED )
+                {
+                    motor_set_mode(motor, MOTOR_MODE_SPEED);
+                }else{
+                    if(motor_get_state(motor) != MOTOR_STATE_READY)
                     {
-                        if(motor_get_mode(motor) != MOTOR_MODE_SPEED )
-                        {
-                            motor_set_mode(motor, MOTOR_MODE_SPEED);
-                        }else{
-                            if(motor_get_state(motor) != MOTOR_STATE_READY)
-                            {
-                                motor_set_state(motor,MOTOR_CMD_SET_ENABLE);
-                            }
-                            motor_set_state(motor,MOTOR_CMD_SET_START);
-                            motor_set_target(motor,150.0f);
-                            elevator_fsm->chState = ELEVATOR_FINDZERO;                                             
-                        }
-                    }else{
-                        elevator_fsm->chState = ELEVATOR_FINDZERO;
+                        motor_set_state(motor,MOTOR_CMD_SET_ENABLE);
                     }
-                    LOG_DBG("Proximity switch state: %d", switch_state);
+                    motor_set_state(motor,MOTOR_CMD_SET_START);
+                    // motor_set_target(motor,150.0f);
+                    elevator_fsm->chState = WHEELMOTOR_IDLE;
                 }
             }
             break;
-
-        case ELEVATOR_FINDZERO:
-            {
-                switch_state = gpio_pin_get_dt(&prx_switch);
-                if(switch_state == 1)//找到零点
-                {
-                    motor_set_target(motor,0.0f);
-                    motor_set_mode(motor, MOTOR_MODE_POSI);
-                    elevator_fsm->chState = ELEVATOR_ZERO;
-                }
-            }
+        case WHEELMOTOR_IDLE:
             break;
-        case ELEVATOR_ZERO://零点处
-            {
-                if(motor_get_mode(motor) != MOTOR_MODE_POSI)
-                {
-                    break;
-                }
-
-                //添加对顶升命令的响应
-                if(conctrl_cmd != 1)
-                {
-                    break;
-                }
-
-                if(motor_get_state(motor) != MOTOR_STATE_READY)
-                {
-                    float posi = -RISING_DIS;
-                    motor_set_target(motor,posi); 
-                    motor_set_state(motor,MOTOR_CMD_SET_ENABLE);
-                    break;
-                }
-                motor_set_state(motor,MOTOR_CMD_SET_START);
-                conctrl_cmd = 0;
-                elevator_fsm->chState = ELEVATOR_ISEND;
-            }
-            break;
-
-        case ELEVATOR_ISEND ://等待5s使其达到远端
-            {
-                {
-                    static uint16_t conut = 0;
-                    conut++;
-                    if(fabsf(motor_get_curposi(motor)) < RISING_DIS - 0.001f)//已经到达位置
-                    {
-                        break;
-                    }
-
-                    if(conut>3100)
-                    {
-                        conut = 0;
-                        elevator_fsm->chState = ELEVATOR_END;    
-                    }
-                    // motor_set_state(motor,MOTOR_CMD_SET_DISABLE);
-                }
-            }
-            break;
-
-        case ELEVATOR_END:
-            {
-                //1、等待回零点指令
-                if(conctrl_cmd != 2)
-                {
-                    break;
-                }
-                if(motor_get_state(motor) != MOTOR_STATE_READY)
-                {
-                    float posi = RISING_DIS + 50;
-                    motor_set_target(motor,posi);                
-                    motor_set_state(motor,MOTOR_CMD_SET_ENABLE);
-                    break;
-                }
-                motor_set_state(motor,MOTOR_CMD_SET_START);
-                conctrl_cmd = 0;
-                elevator_fsm->chState = ELEVATOR_ISZERO;
-            }
-            break;
-
-        case ELEVATOR_ISZERO://是否回到零点
-            switch_state = gpio_pin_get_dt(&prx_switch);
-            if(switch_state != 1)
-            {
-                break;
-
-            }
-            elevator_fsm->chState = ELEVATOR_ZERO;
-            break;
-        case EXIT:
+       case EXIT:
             break;
     }
 }
@@ -303,22 +193,5 @@ uint8 EXCEPTION = 255
 */
 int8_t super_elevator_state(void)
 {
-    int16_t state = 0;
-    if(elevator_handle.chState == ELEVATOR_INIT)
-    {
-        state = 0;
-    }else if(elevator_handle.chState == ELEVATOR_FINDZERO){
-        state = 1;
-    }else if(elevator_handle.chState == ELEVATOR_ZERO){
-        state = 2;
-    }else if(elevator_handle.chState == ELEVATOR_ISEND){
-        state = 3;
-    }else if(elevator_handle.chState == ELEVATOR_END){
-        state = 4;
-    }else if(elevator_handle.chState == ELEVATOR_ISZERO){
-        state = 5;
-    }else{//急停状态，后续补充
-
-    }
-    return state;
+    return 0;
 }

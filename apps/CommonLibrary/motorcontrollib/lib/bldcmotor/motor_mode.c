@@ -13,6 +13,7 @@
  */
 
 #include "algorithmlib/pid.h"
+#include "algorithmlib/s_trajectory_planning.h"
 #include "zephyr/device.h"
 #include <drivers/currsmp.h>
 #include <drivers/feedback.h>
@@ -148,6 +149,7 @@ fsm_rt_t motor_speed_control_mode(fsm_cb_t *obj) {
     pid_init(&(f_data->id_pid), 0.08f, 0.006f, 0.5f, 12.0f, -12.0f);//0.076000  0.080000
     pid_init(&(f_data->iq_pid), 0.08f, 0.006f, 0.5f, 12.0f, -12.0f);
     pid_init(&(f_data->speed_pid), 0.0048f, 0.01f, 0.5f, 48.0f, -48.0f);
+    s_type_interpolation_init((void *)&f_data->s_speed_ph, 100.00f, 300.00f, 0.00f, 0.00f); 
     motor_start(motor);
     obj->chState = MOTOR_STATE_IDLE;
     break;
@@ -167,6 +169,7 @@ fsm_rt_t motor_speed_control_mode(fsm_cb_t *obj) {
     m_data->statue = MOTOR_STATE_CLOSED_LOOP;
     float cur_speed;
     cur_speed = f_data->speed_real;
+    f_data->speed_ref = s_velocity_actory(&(f_data->s_speed_ph))*60.0F;
     f_data->id_ref = 0.0f;
     f_data->iq_ref =
         pid_contrl(&f_data->speed_pid, f_data->speed_ref, cur_speed);

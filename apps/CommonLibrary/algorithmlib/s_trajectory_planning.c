@@ -32,14 +32,14 @@ int16_t s_velocity_planning(s_in_t* pthis, float new_targe)
     
     // 根据速度差选择参数
     if(diff < 1.67f) { // 1.67 rpm/s ≈ 100 rpm/min
-        s->acc = 10.0f;
-        s->jerk = 150.0f;
+        s->acc = 5.0f;
+        s->jerk = 15.0f;
     } else if(diff > 50.0f) { // 50 rpm/s ≈ 3000 rpm/min
         s->acc = s->max_acc;
         s->jerk = s->max_jerk;
     } else { // 1.67~50 rpm/s (100~3000 rpm/min)
-        s->acc = 50.0f;
-        s->jerk = 150.0f;
+        s->acc = 25.0f;
+        s->jerk = 75.0f;
     }
     
     // 计算方向

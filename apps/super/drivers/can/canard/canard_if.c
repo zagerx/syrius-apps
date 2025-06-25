@@ -41,14 +41,14 @@ static uint64_t last_movable_pub = 0;
 static const uint16_t MOVABLE_ADDONS_PUB_INTERVAL_MS = 100; // 1秒发布间隔
 static const CanardPortID MOVABLE_ADDONS_PORT_ID = 1022;     // 为MovableAddons分配的端口ID
 
-static void subscribe_services(void);
-static void handle_motor_enable(CanardRxTransfer* transfer);
-static void handle_set_targe(CanardRxTransfer* transfer);
-static void handle_pid_parameter(CanardRxTransfer* transfer);
-static void handle_set_mode(CanardRxTransfer* transfer);
-static void handle_operate_remote_device(CanardRxTransfer* transfer); // 新增操作远程设备回调
+static void subscribe_services(void* p1);
+static void handle_motor_enable(CanardRxTransfer* transfer,void* p1);
+static void handle_set_targe(CanardRxTransfer* transfer,void* p1);
+static void handle_pid_parameter(CanardRxTransfer* transfer,void* p1);
+static void handle_set_mode(CanardRxTransfer* transfer,void* p1);
+static void handle_operate_remote_device(CanardRxTransfer* transfer,void* p1); // 新增操作远程设备回调
 
-typedef void (*canard_subscription_callback_t)(CanardRxTransfer*);
+typedef void (*canard_subscription_callback_t)(CanardRxTransfer*,void* p1);
 
 #define NODE_ID (28)
 extern int can_init(void);
@@ -165,7 +165,7 @@ static void canard_thread(void *p1, void *p2, void *p3)
 {
     can_init();
     canard_if_init(NODE_ID);
-    subscribe_services();  // 新增服务订阅
+    subscribe_services(p1);  // 新增服务订阅
 
     while(1)
     {
@@ -206,7 +206,7 @@ static void canard_thread(void *p1, void *p2, void *p3)
                 if (subscription && subscription->user_reference) {
                     canard_subscription_callback_t callback = 
                         (canard_subscription_callback_t)subscription->user_reference;
-                    callback(&transfer);
+                    callback(&transfer,p1);
                 }
                 canard.memory_free(&canard, transfer.payload);
             }
@@ -215,13 +215,13 @@ static void canard_thread(void *p1, void *p2, void *p3)
     }
 }
 
-void creat_canard_thread(void)
+void creat_canard_thread(void* p1)
 {
     k_thread_create(&thread,
         canard_thread_stack,
         K_THREAD_STACK_SIZEOF(canard_thread_stack),
         canard_thread,
-        NULL,
+        p1, 
         NULL,
         NULL,
         K_PRIO_COOP(4),  // 高优先级协作线程
@@ -231,7 +231,7 @@ void creat_canard_thread(void)
 
 
 // 订阅服务函数
-static void subscribe_services(void)
+static void subscribe_services(void* p1)
 {
     static CanardRxSubscription sub_enable;
     static CanardRxSubscription sub_setTar;
@@ -276,7 +276,7 @@ static void subscribe_services(void)
 #include <lib/bldcmotor/motor.h>
 extern uint8_t conctrl_cmd;
  // 远程设备操作处理函数
- static void handle_operate_remote_device(CanardRxTransfer* transfer)
+ static void handle_operate_remote_device(CanardRxTransfer* transfer,void* p1)
  {
      dinosaurs_peripheral_OperateRemoteDevice_Request_1_0 req = {0};
      size_t inout_size = transfer->payload_size;
@@ -329,7 +329,7 @@ extern uint8_t conctrl_cmd;
          canardTxPush(&txQueue, &canard, 0, &meta, buffer_size, buffer);
      }
  }
-static void handle_set_mode(CanardRxTransfer* transfer) {
+static void handle_set_mode(CanardRxTransfer* transfer,void* p1) {
     dinosaurs_actuator_wheel_motor_SetMode_Request_2_0 req = {0};
     size_t inout_size = transfer->payload_size;
     
@@ -371,7 +371,7 @@ static void handle_set_mode(CanardRxTransfer* transfer) {
     }
 }
 // 电机使能处理函数
-static void handle_motor_enable(CanardRxTransfer* transfer)
+static void handle_motor_enable(CanardRxTransfer* transfer,void* p1)
 {
     dinosaurs_actuator_wheel_motor_Enable_Request_1_0 req = {0};
     size_t inout_size = transfer->payload_size;
@@ -407,7 +407,7 @@ static void handle_motor_enable(CanardRxTransfer* transfer)
         canardTxPush(&txQueue, &canard, 0, &meta, buffer_size, buffer);
     }
 }
-static void handle_set_targe(CanardRxTransfer* transfer)
+static void handle_set_targe(CanardRxTransfer* transfer,void* p1)
 {
     const uint8_t* data; size_t len; CanardNodeID sender_id;CanardPortID port_id;
     data = transfer->payload;
@@ -424,10 +424,16 @@ static void handle_set_targe(CanardRxTransfer* transfer)
             
         */
         // motor_set_ref_param(0,req.velocity.elements[0].meter_per_second,0.0f);
-
+        volatile static int64_t last_time;
+        int64_t cur_tim;
+        volatile static uint32_t diff;
+        cur_tim = k_uptime_ticks();
+        diff = cur_tim - last_time;
+        last_time = cur_tim;
         float buf[2];
         buf[0] = req.velocity.elements[0].meter_per_second;
         buf[1] = req.velocity.elements[1].meter_per_second;
+        motor_set_target(p1,buf[0]);
         // motor_cmd_set(MOTOR_CMD_SET_SPEED,buf,ARRAY_SIZE(buf));
         // 创建响应
         dinosaurs_actuator_wheel_motor_SetTargetValue_Response_2_0 response = {
@@ -451,7 +457,7 @@ static void handle_set_targe(CanardRxTransfer* transfer)
         canardTxPush(&txQueue, &canard, 0, &meta, buffer_size, buffer);    
     }
 }
-static void handle_pid_parameter(CanardRxTransfer* transfer)
+static void handle_pid_parameter(CanardRxTransfer* transfer,void* p1)
 {
     dinosaurs_actuator_wheel_motor_PidParameter_Request_1_0 req = {0};
     size_t inout_size = transfer->payload_size;

@@ -19,11 +19,12 @@
  #define SLEEP_TIME_MS   1
  
  extern void creat_motor_thread(const struct device *dev);
- extern void creat_canard_thread(void);
+ extern void creat_canard_thread(void* p1);
  
  int main(void)
  {
-     creat_canard_thread(); 
+    const struct device *motor0 = DEVICE_DT_GET(DT_NODELABEL(motor0));
+     creat_canard_thread((void *)motor0); 
      creat_motor_thread(NULL);
      while (1) {
          k_msleep(1000);

@@ -10,6 +10,7 @@
 
 #include "algorithmlib/filter.h"
 #include "algorithmlib/pid.h"
+#include "algorithmlib/trajectory_planning.h"
 #include "lib/focutils/svm/svm.h"
 #include "lib/focutils/utils/deadtime_comp.h"
 #include "zephyr/device.h"
@@ -54,7 +55,10 @@ static void _write(const struct device* dev,int16_t flag,float *input)
             {
                 float speed_ref;
                 speed_ref = input[0];
-                data->speed_ref = speed_ref;
+                LOG_INF("SPEED PLANNING");
+                s_velocity_planning(&data->s_speed_ph, speed_ref);
+                // data->speed_ref = speed_ref;
+                // data->speed_ref = 150.0f;
             }
             break;
         case FOC_PARAM_POSI_REF:

@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20.0)
+set(DTC_OVERLAY_FILE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/super.overlay
+)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
 project(super)
@@ -38,6 +41,7 @@ add_library(algorithmlib INTERFACE)
 target_sources(algorithmlib INTERFACE
     ../CommonLibrary/algorithmlib/pid.c
     ../CommonLibrary/algorithmlib/filter.c
+    ../CommonLibrary/algorithmlib/s_trajectory_planning.c
     ../CommonLibrary/algorithmlib/s_posi_planning.c
 )
 
