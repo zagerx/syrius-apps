@@ -5,6 +5,6 @@ manifest:
   
   projects:
     - name: CommonLibrary
-      path: syrius-apps/apps/CommonLibrary/
+      path: ./apps/CommonLibrary/
       remote: zagerx
       revision: master
