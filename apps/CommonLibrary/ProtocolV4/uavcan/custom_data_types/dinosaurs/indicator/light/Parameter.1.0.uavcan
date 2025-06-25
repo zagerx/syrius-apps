@@ -1,9 +1,0 @@
-# Set Parameters
-
-
-@extent 64 * 8
-
----
-
-uint8 state
-@sealed

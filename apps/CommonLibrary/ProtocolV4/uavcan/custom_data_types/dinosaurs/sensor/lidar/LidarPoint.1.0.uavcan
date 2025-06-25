@@ -1,6 +1,0 @@
-# lidar_point
-
-uint8 reflectivity
-uint16 distance  # millimeter
-
-@sealed
