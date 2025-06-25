@@ -5,6 +5,11 @@ manifest:
   
   projects:
     - name: CommonLibrary
-      path: ./apps/CommonLibrary/
+      path: syrius-apps/apps/CommonLibrary/
       remote: zagerx
       revision: master
+
+    - name: ProtocolV4
+      path: syrius-apps/apps/CommonLibrary/ProtocolV4
+      remote: zagerx
+      revision: master      
