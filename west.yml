@@ -1,0 +1,10 @@
+manifest:
+  remotes:
+    - name: zagerx
+      url-base: https://github.com/zagerx
+  
+  projects:
+    - name: CommonLibrary
+      path: syrius-apps/apps/
+      remote: zagerx
+      revision: master
